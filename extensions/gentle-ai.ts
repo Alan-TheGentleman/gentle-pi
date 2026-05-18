@@ -530,8 +530,10 @@ function listAgentFilesRecursive(dir: string): string[] {
 	const files: string[] = [];
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
 		const path = join(dir, entry.name);
-		if (entry.isDirectory()) files.push(...listAgentFilesRecursive(path));
-		else if (
+		if (entry.isDirectory()) {
+			if (entry.name === "skills") continue;
+			files.push(...listAgentFilesRecursive(path));
+		} else if (
 			entry.isFile() &&
 			entry.name.endsWith(".md") &&
 			!entry.name.endsWith(".chain.md")
@@ -553,6 +555,7 @@ async function listAgentFilesRecursiveAsync(dir: string): Promise<string[]> {
 	for (const entry of entries) {
 		const path = join(dir, entry.name);
 		if (entry.isDirectory()) {
+			if (entry.name === "skills") continue;
 			files.push(...(await listAgentFilesRecursiveAsync(path)));
 		} else if (
 			entry.isFile() &&
@@ -1264,6 +1267,12 @@ async function handlePersonaCommand(ctx: ExtensionContext): Promise<void> {
 		"info",
 	);
 }
+
+/** @internal */
+export const __testing = {
+	listAgentsFromDir,
+	listAgentsFromDirAsync,
+};
 
 export default function gentleAi(pi: ExtensionAPI): void {
 	function runSddPreflight(ctx: ExtensionContext): Promise<SddPreflightPreferences> {
