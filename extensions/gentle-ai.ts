@@ -233,6 +233,8 @@ const MODEL_CONTROL_OPTIONS = [
 	INHERIT_MODEL,
 	CUSTOM_MODEL,
 ] as const;
+const AGENT_LIST_MAX_VISIBLE_ROWS = 16;
+const MODEL_LIST_MAX_VISIBLE_ROWS = 12;
 
 function readStringPath(value: unknown, path: string[]): string | undefined {
 	let current = value;
@@ -868,9 +870,25 @@ class SddModelPanel implements OverlayComponent {
 	}
 
 	render(width: number): string[] {
-		if (this.mode === "models") return this.renderModelPicker(width);
-		if (this.mode === "effort") return this.renderEffortPicker(width);
-		return this.renderAgentList(width);
+		const innerWidth = Math.max(1, width - 4);
+		const lines =
+			this.mode === "models"
+				? this.renderModelPicker(innerWidth)
+				: this.mode === "effort"
+					? this.renderEffortPicker(innerWidth)
+					: this.renderAgentList(innerWidth);
+		return this.renderCard(lines, width);
+	}
+
+	private renderCard(lines: string[], width: number): string[] {
+		const innerWidth = Math.max(1, width - 4);
+		const fit = (text = "") =>
+			truncateToWidth(text, innerWidth, "…", true).padEnd(innerWidth);
+		return [
+			`╭${"─".repeat(innerWidth + 2)}╮`,
+			...lines.map((line) => `│ ${fit(line)} │`),
+			`╰${"─".repeat(innerWidth + 2)}╯`,
+		];
 	}
 
 	private handleAgentInput(data: string): void {
@@ -889,6 +907,14 @@ class SddModelPanel implements OverlayComponent {
 		}
 		if (matchesKey(data, "up") || data === "k") {
 			this.cursor = Math.max(0, this.cursor - 1);
+			return;
+		}
+		if (data === "g") {
+			this.cursor = 0;
+			return;
+		}
+		if (data === "G") {
+			this.cursor = maxCursor;
 			return;
 		}
 		if (data === "i") {
@@ -1045,7 +1071,18 @@ class SddModelPanel implements OverlayComponent {
 		lines.push("");
 		lines.push(line("Current assignments:"));
 		lines.push("");
-		for (let i = 0; i < this.rows.length; i++) {
+		const visibleRows = Math.min(AGENT_LIST_MAX_VISIBLE_ROWS, this.rows.length);
+		const listCursor = Math.min(this.cursor, this.rows.length - 1);
+		const start = Math.max(
+			0,
+			Math.min(
+				listCursor - Math.floor(visibleRows / 2),
+				Math.max(0, this.rows.length - visibleRows),
+			),
+		);
+		const end = Math.min(this.rows.length, start + visibleRows);
+		if (start > 0) lines.push(line(`  ↑ ${start} more agent(s)`));
+		for (let i = start; i < end; i++) {
 			const row = this.rows[i] ?? SET_ALL_AGENTS;
 			const focused = i === this.cursor;
 			const label =
@@ -1054,6 +1091,8 @@ class SddModelPanel implements OverlayComponent {
 					: this.renderAgentLabel(row);
 			lines.push(line(`${focused ? "▸" : " "} ${label}`));
 		}
+		if (end < this.rows.length)
+			lines.push(line(`  ↓ ${this.rows.length - end} more agent(s)`));
 		lines.push("");
 		lines.push(
 			line(`${this.cursor === this.rows.length ? "▸" : " "} Continue`),
@@ -1064,7 +1103,7 @@ class SddModelPanel implements OverlayComponent {
 		lines.push("");
 		lines.push(
 			line(
-				"j/k: navigate • enter: change model / confirm • e: change effort • i: inherit all • c: custom model • ctrl+s: save • esc: back",
+				"j/k: scroll • g/G: top/bottom • enter: change model / confirm • e: effort • i: inherit • c: custom • ctrl+s: save • esc: back",
 			),
 		);
 		return lines;
@@ -1079,15 +1118,14 @@ class SddModelPanel implements OverlayComponent {
 		lines.push("");
 		lines.push(line(`◎ ${this.query || "search..."}`));
 		lines.push("");
-		const maxVisible = 12;
 		const start = Math.max(
 			0,
 			Math.min(
-				this.modelCursor - Math.floor(maxVisible / 2),
-				Math.max(0, options.length - maxVisible),
+				this.modelCursor - Math.floor(MODEL_LIST_MAX_VISIBLE_ROWS / 2),
+				Math.max(0, options.length - MODEL_LIST_MAX_VISIBLE_ROWS),
 			),
 		);
-		const end = Math.min(options.length, start + maxVisible);
+		const end = Math.min(options.length, start + MODEL_LIST_MAX_VISIBLE_ROWS);
 		for (let i = start; i < end; i++) {
 			const focused = i === this.modelCursor;
 			lines.push(line(`${focused ? "▸" : " "} ${options[i]}`));

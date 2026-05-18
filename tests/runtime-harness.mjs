@@ -640,12 +640,44 @@ async function run() {
 			join(modelsCwd, ".pi", "agents", "sdd-apply.md"),
 			`---\nname: sdd-apply\ndescription: Apply phase\n---\n\nbody\n`,
 		);
+		for (let i = 0; i < 25; i++) {
+			const name = `large-agent-${String(i).padStart(2, "0")}`;
+			await writeFile(
+				join(modelsCwd, ".pi", "agents", `${name}.md`),
+				`---\nname: ${name}\ndescription: Scroll fixture\n---\n`,
+			);
+		}
 		await writeFile(
 			globalModelsPath,
 			JSON.stringify({ "sdd-apply": "openai/gpt-5" }, null, 2),
 		);
 
 		const ctx = createCtx(modelsCwd, true);
+		ctx.ui.custom = (factory) => {
+			const panel = factory(null, null, null, () => undefined);
+			const initialLines = panel.render(120);
+			assert.ok(
+				initialLines[0].startsWith("╭") && initialLines.at(-1).startsWith("╰"),
+				"model panel should render inside a bordered card",
+			);
+			assert.ok(
+				initialLines.some((line) => /↓ \d+ more agent\(s\)/.test(line)),
+				"long model agent list should render a down-scroll indicator",
+			);
+			assert.ok(
+				initialLines.some((line) => line.includes("Continue")),
+				"long model agent list should keep Continue visible",
+			);
+			for (let i = 0; i < 20; i++) panel.handleInput("j");
+			const scrolledLines = panel.render(120);
+			assert.ok(
+				scrolledLines.some((line) => /↑ \d+ more agent\(s\)/.test(line)),
+				"long model agent list should render an up-scroll indicator after navigation",
+			);
+			return Promise.resolve({ type: "cancel" });
+		};
+		await commands.get("gentle:models").handler("", ctx);
+
 		await hooks.get("session_start")[0]({ reason: "startup" }, ctx);
 		const legacyAppliedAgent = await readFile(
 			join(modelsCwd, ".pi", "agents", "sdd-apply.md"),
